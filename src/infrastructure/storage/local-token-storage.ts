@@ -1,49 +1,40 @@
 // src/infrastructure/storage/local-token-storage.ts
 
-/** Forma de los tokens guardados en localStorage. */
-export interface LocalTokens {
-  access: string
-  refresh: string
-}
+const ACCESS_TOKEN_KEY = 'dietetic_access_token'
+const REFRESH_TOKEN_KEY = 'dietetic_refresh_token'
+const USER_INFO_KEY = 'dietetic_user_info'
 
-/** Claves usadas para guardar los tokens. */
-const KEYS = {
-  ACCESS: 'shopapp_access',
-  REFRESH: 'shopapp_refresh',
-} as const
-
-/**
- * Wrapper tipado sobre localStorage para manejar tokens JWT.
- * Todos los métodos son sincrónicos — localStorage es síncrono por spec.
- */
 export const localTokenStorage = {
-  /** Devuelve ambos tokens si existen, null si falta alguno. */
-  getTokens(): LocalTokens | null {
-    const access = localStorage.getItem(KEYS.ACCESS)
-    const refresh = localStorage.getItem(KEYS.REFRESH)
-    if (!access || !refresh) return null
-    return { access, refresh }
+  saveTokens(access: string, refresh: string) {
+    localStorage.setItem(ACCESS_TOKEN_KEY, access)
+    localStorage.setItem(REFRESH_TOKEN_KEY, refresh)
   },
 
-  /** Persiste el access token y el refresh token. */
-  setTokens(access: string, refresh: string): void {
-    localStorage.setItem(KEYS.ACCESS, access)
-    localStorage.setItem(KEYS.REFRESH, refresh)
-  },
-
-  /** Elimina ambos tokens (logout o expiración de sesión). */
-  clearTokens(): void {
-    localStorage.removeItem(KEYS.ACCESS)
-    localStorage.removeItem(KEYS.REFRESH)
-  },
-
-  /** Devuelve solo el access token, o null si no existe. */
   getAccessToken(): string | null {
-    return localStorage.getItem(KEYS.ACCESS)
+    return localStorage.getItem(ACCESS_TOKEN_KEY)
   },
 
-  /** Devuelve solo el refresh token, o null si no existe. */
   getRefreshToken(): string | null {
-    return localStorage.getItem(KEYS.REFRESH)
+    return localStorage.getItem(REFRESH_TOKEN_KEY)
   },
+
+  clear() {
+    localStorage.removeItem(ACCESS_TOKEN_KEY)
+    localStorage.removeItem(REFRESH_TOKEN_KEY)
+    localStorage.removeItem(USER_INFO_KEY)
+  },
+
+  saveUser(user: any) {
+    localStorage.setItem(USER_INFO_KEY, JSON.stringify(user))
+  },
+
+  getUser(): any | null {
+    const raw = localStorage.getItem(USER_INFO_KEY)
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
 }
