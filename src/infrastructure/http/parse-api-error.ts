@@ -1,56 +1,46 @@
 // src/infrastructure/http/parse-api-error.ts
-import type { AxiosError } from 'axios'
-import { ApiException } from '@/domain/exceptions/api.exception'
+import { isAxiosError } from 'axios'
 
-/** Forma esperada de la respuesta de error de la API Django REST. */
-interface DjangoErrorResponse {
-  detail?: string
-  non_field_errors?: string[]
-  [field: string]: string[] | string | undefined
-}
-
-/**
- * Convierte cualquier error (Axios o desconocido) en un ApiException normalizado.
- * Úsalo en los catch de los interceptors y de los adapters de infrastructure/.
- *
- * @example
- * try {
- *   await apiClient.post('/auth/login/', body)
- * } catch (err) {
- *   throw parseApiError(err)
- * }
- */
-export function parseApiError(error: unknown): ApiException {
-  // Error de red (sin respuesta del servidor)
-  const axiosErr = error as AxiosError<DjangoErrorResponse>
-  if (!axiosErr.response) {
-    return new ApiException(0, 'No se pudo conectar con el servidor. Verifica tu conexión.')
+export function parseApiError(error: unknown): string {
+  if (!isAxiosError(error)) {
+    if (error instanceof Error) return error.message
+    return 'Ha ocurrido un error inesperado.'
   }
 
-  const { status, data } = axiosErr.response
-
-  // Extraer el mensaje principal
-  let detail = `Error ${status}`
-  if (data?.detail) {
-    detail = String(data.detail)
-  } else if (data?.non_field_errors?.length) {
-    detail = data.non_field_errors[0]
-  }
-
-  // Extraer errores por campo (validación 400)
-  let fieldErrors: Record<string, string[]> | undefined
-  if (status === 400 && data) {
-    fieldErrors = {}
-    for (const [key, value] of Object.entries(data)) {
-      if (key === 'detail' || key === 'non_field_errors') continue
-      if (Array.isArray(value)) {
-        fieldErrors[key] = value.map(String)
+  if (error.response) {
+    const data = error.response.data
+    // Handle Django error responses which can be dict, array or string
+    if (typeof data === 'object' && data !== null) {
+      // Look for error, detail, non_field_errors
+      if ('error' in data) return String((data as any).error)
+      if ('detail' in data) return String((data as any).detail)
+      if ('non_field_errors' in data) {
+        const errs = (data as any).non_field_errors
+        return Array.isArray(errs) ? errs.join(' ') : String(errs)
       }
+      
+      // Concat field validation errors
+      const messages: string[] = []
+      for (const [key, value] of Object.entries(data)) {
+        const fieldName = key.charAt(0).toUpperCase() + key.slice(1)
+        if (Array.isArray(value)) {
+          messages.push(`${fieldName}: ${value.join(', ')}`)
+        } else if (typeof value === 'object' && value !== null) {
+          messages.push(`${fieldName}: ${JSON.stringify(value)}`)
+        } else {
+          messages.push(`${fieldName}: ${value}`)
+        }
+      }
+      if (messages.length > 0) return messages.join('\n')
     }
-    if (Object.keys(fieldErrors).length === 0) {
-      fieldErrors = undefined
-    }
+
+    if (typeof data === 'string') return data
+    return `Error del servidor (${error.response.status}).`
   }
 
-  return new ApiException(status, detail, fieldErrors)
+  if (error.request) {
+    return 'No se pudo conectar con el servidor. Por favor, asegúrate de que el backend de Django esté encendido.'
+  }
+
+  return error.message
 }
