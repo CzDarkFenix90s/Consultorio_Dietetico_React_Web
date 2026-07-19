@@ -1,151 +1,127 @@
 // src/presentation/pages/auth/LoginPage.tsx
-import { useEffect } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Loader2, ShoppingBag } from 'lucide-react'
-
-import { useAuthStore } from '@/presentation/store/auth.store'
-import { Button } from '@/presentation/components/ui/button'
-import { Input } from '@/presentation/components/ui/input'
-import { Label } from '@/presentation/components/ui/label'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/presentation/components/ui/card'
-
-// ─── Schema de validación ─────────────────────────────────────────────────────
-
-const loginSchema = z.object({
-  username: z
-    .string()
-    .min(3, 'El usuario debe tener al menos 3 caracteres'),
-  password: z
-    .string()
-    .min(6, 'La contraseña debe tener al menos 6 caracteres'),
-})
-
-type LoginFormData = z.infer<typeof loginSchema>
-
-// ─── Componente ───────────────────────────────────────────────────────────────
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { Eye, EyeOff, Lock, ShieldPlus, User } from 'lucide-react'
+import { useAuthStore } from '../../store/useAuthStore'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const location = useLocation()
+  const { login, loading, error, clearError } = useAuthStore()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
-  // Destino al que redirigir tras login (si vinieron de una ruta protegida)
-  const from = (location.state as { from?: Location })?.from?.pathname ?? '/'
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!username.trim() || !password) {
+      return
+    }
 
-  const { login, isLoading, error, clearError, user } = useAuthStore()
+    const success = await login({
+      username: username.trim(),
+      password,
+    })
 
-  // Si ya está autenticado, redirigir directamente
-  useEffect(() => {
-    if (user) navigate(from, { replace: true })
-  }, [user, from, navigate])
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-  })
-
-  async function onSubmit(data: LoginFormData) {
-    clearError()
-    try {
-      await login(data.username, data.password)
-      navigate(from, { replace: true })
-    } catch {
-      // El error ya se guardó en el store; no necesitamos hacer nada aquí
+    if (success) {
+      // Profile loaded. Check role to redirect.
+      const state = useAuthStore.getState()
+      const role = state.user?.role
+      if (role === 'admin' || role === 'nutricionista') {
+        navigate('/admin')
+      } else {
+        navigate('/patient/menu')
+      }
     }
   }
 
+
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          {/* Logo / marca */}
-          <div className="flex justify-center mb-2">
-            <div className="flex items-center gap-2 rounded-full bg-primary p-3 text-primary-foreground">
-              <ShoppingBag className="h-6 w-6" />
-            </div>
+    <main className="min-h-screen bg-[linear-gradient(180deg,#1b4332_0%,#2d6a4f_50%,#40916c_100%)] px-4 py-6 text-white sm:px-6 lg:px-8 flex items-center justify-center">
+      <section className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl backdrop-blur-md sm:p-10">
+        <div className="mx-auto flex flex-col items-center text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20">
+            <ShieldPlus className="h-10 w-10 animate-pulse" strokeWidth={2.5} />
           </div>
-          <CardTitle className="text-2xl">ShopApp</CardTitle>
-          <CardDescription>Inicia sesión para continuar</CardDescription>
-        </CardHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <CardContent className="space-y-4">
-            {/* Error global de la API */}
-            {error && (
-              <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {error}
+          <h1 className="mt-6 text-4xl font-extrabold tracking-tight sm:text-5xl bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
+            Dietetic App
+          </h1>
+          <p className="mt-3 text-lg font-medium text-slate-300">Bienvenido a tu salud inteligente</p>
+
+          <form className="mt-10 w-full space-y-5 text-left" onSubmit={handleSubmit}>
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-slate-300">Nombre de Usuario</span>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/25 px-4 py-3.5 text-slate-100 shadow-inner focus-within:border-emerald-500/50 transition">
+                <User className="h-5 w-5 shrink-0 text-slate-400" />
+                <input
+                  type="text"
+                  name="username"
+                  required
+                  placeholder="Nombre de Usuario"
+                  value={username}
+                  onChange={(event) => {
+                    clearError()
+                    setUsername(event.target.value)
+                  }}
+                  className="w-full bg-transparent text-base font-medium outline-none placeholder:text-slate-500"
+                />
               </div>
-            )}
+            </label>
 
-            {/* Campo: username */}
-            <div className="space-y-1">
-              <Label htmlFor="username">Usuario</Label>
-              <Input
-                id="username"
-                type="text"
-                autoComplete="username"
-                placeholder="tu_usuario"
-                aria-invalid={!!errors.username}
-                {...register('username')}
-              />
-              {errors.username && (
-                <p className="text-xs text-destructive">{errors.username.message}</p>
-              )}
-            </div>
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-slate-300">Contraseña de Acceso</span>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/25 px-4 py-3.5 text-slate-100 shadow-inner focus-within:border-emerald-500/50 transition">
+                <Lock className="h-5 w-5 shrink-0 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  required
+                  placeholder="Contraseña de Acceso"
+                  value={password}
+                  onChange={(event) => {
+                    clearError()
+                    setPassword(event.target.value)
+                  }}
+                  className="w-full bg-transparent text-base font-medium outline-none placeholder:text-slate-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-slate-400 hover:text-white transition shrink-0"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+            </label>
 
-            {/* Campo: password */}
-            <div className="space-y-1">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                aria-invalid={!!errors.password}
-                {...register('password')}
-              />
-              {errors.password && (
-                <p className="text-xs text-destructive">{errors.password.message}</p>
-              )}
-            </div>
-          </CardContent>
+            {error ? (
+              <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-400 whitespace-pre-line">
+                {error}
+              </p>
+            ) : null}
 
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Iniciando sesión…
-                </>
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-2 w-full flex items-center justify-center rounded-2xl bg-emerald-500 px-4 py-4 text-base font-bold uppercase tracking-wider text-slate-950 shadow-lg shadow-emerald-500/25 transition duration-350 hover:bg-emerald-400 hover:shadow-emerald-500/45 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] disabled:opacity-50 disabled:translate-y-0"
+            >
+              {loading ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
               ) : (
                 'Iniciar sesión'
               )}
-            </Button>
+            </button>
+          </form>
 
-            <p className="text-center text-sm text-muted-foreground">
-              ¿No tienes cuenta?{' '}
-              <Link
-                to="/register"
-                className="font-medium text-primary hover:underline"
-              >
-                Regístrate
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+          <p className="mt-8 text-sm font-medium text-slate-400">
+            ¿Eres nuevo?{' '}
+            <Link to="/register" className="text-emerald-400 font-bold hover:underline transition decoration-2 underline-offset-4">
+              Crea una cuenta aquí
+            </Link>
+          </p>
+        </div>
+      </section>
+    </main>
   )
 }
