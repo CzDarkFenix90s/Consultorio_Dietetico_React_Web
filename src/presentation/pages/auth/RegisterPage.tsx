@@ -1,196 +1,171 @@
 // src/presentation/pages/auth/RegisterPage.tsx
-import { useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Loader2, ShoppingBag } from 'lucide-react'
-
-import { useAuthStore } from '@/presentation/store/auth.store'
-import { Button } from '@/presentation/components/ui/button'
-import { Input } from '@/presentation/components/ui/input'
-import { Label } from '@/presentation/components/ui/label'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/presentation/components/ui/card'
-
-// ─── Schema de validación ─────────────────────────────────────────────────────
-
-const registerSchema = z
-  .object({
-    username: z
-      .string()
-      .min(3, 'El usuario debe tener al menos 3 caracteres')
-      .max(150, 'El usuario es demasiado largo')
-      .regex(
-        /^[\w.@+-]+$/,
-        'Solo letras, números y los caracteres @ . + - _',
-      ),
-    email: z
-      .string()
-      .min(1, 'El email es obligatorio')
-      .email('Introduce un email válido'),
-    password: z
-      .string()
-      .min(6, 'La contraseña debe tener al menos 6 caracteres'),
-    confirmPassword: z
-      .string()
-      .min(1, 'Confirma tu contraseña'),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Las contraseñas no coinciden',
-    path: ['confirmPassword'],
-  })
-
-type RegisterFormData = z.infer<typeof registerSchema>
-
-// ─── Componente ───────────────────────────────────────────────────────────────
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../store/useAuthStore'
+import AuthShell from './AuthShell'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
-  const { register: registerUser, isLoading, error, clearError, user } = useAuthStore()
-
-  // Si ya está autenticado, ir al inicio
-  useEffect(() => {
-    if (user) navigate('/', { replace: true })
-  }, [user, navigate])
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
+  const { register, loading, error, clearError } = useAuthStore()
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    password2: '',
+    first_name: '',
+    last_name: '',
   })
+  const [validationError, setValidationError] = useState('')
 
-  async function onSubmit(data: RegisterFormData) {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     clearError()
-    try {
-      await registerUser(data.username, data.email, data.password)
-      navigate('/', { replace: true })
-    } catch {
-      // El error ya está en el store
+    setValidationError('')
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    })
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+
+    const { username, email, password, password2, first_name, last_name } = formData
+
+    if (!username.trim() || !email.trim() || !password || !password2) {
+      setValidationError('Por favor llena todos los campos obligatorios.')
+      return
+    }
+
+    if (password !== password2) {
+      setValidationError('Las contraseñas no coinciden.')
+      return
+    }
+
+    if (password.length < 8) {
+      setValidationError('La contraseña debe tener al menos 8 caracteres.')
+      return
+    }
+
+    const success = await register({
+      username: username.trim().toLowerCase(),
+      email: email.trim(),
+      password,
+      password2,
+      first_name,
+      last_name,
+    })
+
+    if (success) {
+      navigate('/patient/menu')
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-2">
-            <div className="flex items-center gap-2 rounded-full bg-primary p-3 text-primary-foreground">
-              <ShoppingBag className="h-6 w-6" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl">Crear cuenta</CardTitle>
-          <CardDescription>Únete a ShopApp hoy</CardDescription>
-        </CardHeader>
+    <AuthShell
+      eyebrow="Registro de Paciente"
+      title="Crea tu cuenta y empieza a cuidar tu nutrición"
+      description="Únete a nuestra plataforma inteligente para recibir planes de alimentación, rutinas y chat directo con tu especialista."
+      footerPrompt="¿Ya tienes una cuenta?"
+      footerLinkLabel="Inicia sesión"
+      footerLinkTo="/login"
+    >
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold text-slate-300">Nombre</span>
+            <input
+              type="text"
+              name="first_name"
+              value={formData.first_name}
+              onChange={handleInputChange}
+              placeholder="Ana"
+              className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500/50"
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold text-slate-300">Apellido</span>
+            <input
+              type="text"
+              name="last_name"
+              value={formData.last_name}
+              onChange={handleInputChange}
+              placeholder="Gómez"
+              className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500/50"
+            />
+          </label>
+        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <CardContent className="space-y-4">
-            {/* Error global de la API */}
-            {error && (
-              <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
+        <label className="block space-y-2">
+          <span className="text-sm font-semibold text-slate-300">Nombre de Usuario *</span>
+          <input
+            type="text"
+            name="username"
+            required
+            value={formData.username}
+            onChange={handleInputChange}
+            placeholder="anagomez"
+            className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500/50"
+          />
+        </label>
 
-            {/* Campo: username */}
-            <div className="space-y-1">
-              <Label htmlFor="username">Usuario</Label>
-              <Input
-                id="username"
-                type="text"
-                autoComplete="username"
-                placeholder="tu_usuario"
-                aria-invalid={!!errors.username}
-                {...register('username')}
-              />
-              {errors.username && (
-                <p className="text-xs text-destructive">{errors.username.message}</p>
-              )}
-            </div>
+        <label className="block space-y-2">
+          <span className="text-sm font-semibold text-slate-300">Correo electrónico *</span>
+          <input
+            type="email"
+            name="email"
+            required
+            value={formData.email}
+            onChange={handleInputChange}
+            placeholder="you@example.com"
+            className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500/50"
+          />
+        </label>
 
-            {/* Campo: email */}
-            <div className="space-y-1">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="tuemail@ejemplo.com"
-                aria-invalid={!!errors.email}
-                {...register('email')}
-              />
-              {errors.email && (
-                <p className="text-xs text-destructive">{errors.email.message}</p>
-              )}
-            </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold text-slate-300">Contraseña *</span>
+            <input
+              type="password"
+              name="password"
+              required
+              value={formData.password}
+              onChange={handleInputChange}
+              placeholder="Mínimo 8 caracteres"
+              className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500/50"
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold text-slate-300">Confirmar contraseña *</span>
+            <input
+              type="password"
+              name="password2"
+              required
+              value={formData.password2}
+              onChange={handleInputChange}
+              placeholder="Repite la contraseña"
+              className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-emerald-500/50"
+            />
+          </label>
+        </div>
 
-            {/* Campo: password */}
-            <div className="space-y-1">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                placeholder="••••••••"
-                aria-invalid={!!errors.password}
-                {...register('password')}
-              />
-              {errors.password && (
-                <p className="text-xs text-destructive">{errors.password.message}</p>
-              )}
-            </div>
+        {(validationError || error) ? (
+          <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-400 whitespace-pre-line">
+            {validationError || error}
+          </p>
+        ) : null}
 
-            {/* Campo: confirmPassword */}
-            <div className="space-y-1">
-              <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                placeholder="••••••••"
-                aria-invalid={!!errors.confirmPassword}
-                {...register('confirmPassword')}
-              />
-              {errors.confirmPassword && (
-                <p className="text-xs text-destructive">
-                  {errors.confirmPassword.message}
-                </p>
-              )}
-            </div>
-          </CardContent>
-
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creando cuenta…
-                </>
-              ) : (
-                'Crear cuenta'
-              )}
-            </Button>
-
-            <p className="text-center text-sm text-muted-foreground">
-              ¿Ya tienes cuenta?{' '}
-              <Link
-                to="/login"
-                className="font-medium text-primary hover:underline"
-              >
-                Inicia sesión
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="mt-4 w-full flex items-center justify-center rounded-2xl bg-emerald-500 px-4 py-3.5 text-sm font-bold uppercase tracking-wider text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-50"
+        >
+          {loading ? (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+          ) : (
+            'Crear cuenta'
+          )}
+        </button>
+      </form>
+    </AuthShell>
   )
 }
